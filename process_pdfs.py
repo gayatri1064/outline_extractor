@@ -34,7 +34,7 @@ def process_all_pdfs():
 
             headings = classify_headings(lines, deduplicate=True, debug=False)
             print(f"Found {len(headings)} heading candidates")
-            
+
             headings = semantic_deduplicate(headings)
             print(f"After semantic deduplication: {len(headings)} headings")
 
@@ -51,7 +51,7 @@ def process_all_pdfs():
             print(f"Saved structured outline to {output_path}")
 
         except Exception as e:
-            print(f"Failed to process {filename}: {e}")
+            print(f"Failed to process the pdfs!!! {filename}: {e}")
 
 if __name__ == "__main__":
     process_all_pdfs()
