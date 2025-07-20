@@ -1,4 +1,4 @@
-import fitz  # PyMuPDF
+import fitz  
 
 def extract_visual_features(pdf_path):
     """

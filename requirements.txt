@@ -1,3 +1,5 @@
 PyMuPDF
 pdfminer.six
 pdfplumber
+sentence-transformers
+

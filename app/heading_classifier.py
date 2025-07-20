@@ -1,3 +1,6 @@
+from sentence_transformers import SentenceTransformer, util
+import torch
+model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
 def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5, font_tolerance=1.0, debug=False):
     """
     Improved grouping function that better handles multi-line headings.
@@ -88,9 +91,6 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
     return grouped
 
 def classify_headings(lines, deduplicate=True, debug=False):
-    """
-    Classifies grouped lines into headings (H1, H2, H3) using heuristics.
-    """
     lines = group_multiline_candidates(lines, debug=debug)
 
     font_sizes = [line["font_size"] for line in lines]
@@ -104,23 +104,19 @@ def classify_headings(lines, deduplicate=True, debug=False):
         score = 0
         text = line["text"].strip()
 
-        # ignore junk lines
-        if len(text.split()) <= 1:
+        # Skip bad candidates
+        if len(text.split()) <= 1 or not any(c.isalpha() for c in text):
             if debug:
-                print(f"⛔ Too short: {text}")
-            continue
-        if not any(c.isalpha() for c in text):
-            if debug:
-                print(f"⛔ Not enough alphabets: {text}")
+                print(f"⛔ Rejected: {text}")
             continue
 
-        # heading heuristics
+        # Heuristics
         if line["font_size"] >= max_font * 0.9:
-            score += 2  # H1
+            score += 2
         elif line["font_size"] >= avg_font * 1.5:
-            score += 1  # H2
+            score += 1
         elif line["font_size"] >= avg_font * 1.2:
-            score += 0.5  # H3
+            score += 0.5
 
         if line["bold"]:
             score += 0.5
@@ -129,7 +125,7 @@ def classify_headings(lines, deduplicate=True, debug=False):
         if line["y"] < 200:
             score += 0.2
 
-        # final classification
+        # Assign level
         if score >= 2:
             level = "H1"
         elif score >= 1.5:
@@ -141,8 +137,8 @@ def classify_headings(lines, deduplicate=True, debug=False):
                 print(f"⛔ Low score ({score:.2f}): {text}")
             continue
 
-        key = (text.lower(), level, line["page"])  # prevent cross-page duplicates
-        if deduplicate and key in seen:
+        key = (text.lower(), level, line["page"])
+        if key in seen:
             continue
         seen.add(key)
 
@@ -154,5 +150,27 @@ def classify_headings(lines, deduplicate=True, debug=False):
 
         if debug:
             print(f"✅ [{level}] {text} (Page {line['page']})")
+
+    # ✅ Semantic deduplication (AFTER collecting all headings)
+    if deduplicate:
+        unique_headings = []
+        seen_embeddings = []
+
+        for h in headings:
+            text = h["text"]
+            embedding = model.encode(text, convert_to_tensor=True)
+
+            is_duplicate = False
+            for seen in seen_embeddings:
+                sim = util.pytorch_cos_sim(embedding, seen)[0][0].item()
+                if sim > 0.88:
+                    is_duplicate = True
+                    break
+
+            if not is_duplicate:
+                unique_headings.append(h)
+                seen_embeddings.append(embedding)
+
+        headings = unique_headings
 
     return headings

@@ -2,34 +2,56 @@ import os
 import json
 from app.visual_features import extract_visual_features
 from app.heading_classifier import classify_headings
-from app.toc_builder import build_outline_hierarchy, print_outline_tree
-
-PDF_PATH = "sample_dataset/pdfs/policy_doc.pdf"
-OUTPUT_PATH = "sample_dataset/outputs/outline.json"
-
-lines = extract_visual_features(PDF_PATH)
-print(f"Extracted {len(lines)} lines from {PDF_PATH}")
+from app.toc_builder import build_outline_hierarchy
+from app.semantic_filter import semantic_deduplicate
 
 
-with open("output/visual_lines.json", "w", encoding="utf-8") as f:
-    json.dump(lines, f, indent=2, ensure_ascii=False)
-print("Saved visual features to output/visual_lines.json")
+INPUT_DIR = "input"
+OUTPUT_DIR = "output"
 
+def process_all_pdfs():
+    if not os.path.exists(INPUT_DIR):
+        print(f"Input directory '{INPUT_DIR}' not found.")
+        return
 
-headings = classify_headings(lines, deduplicate=True, debug=True)
-print(f" Found {len(headings)} heading candidates")
+    os.makedirs(OUTPUT_DIR, exist_ok=True)
 
+    pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".pdf")]
 
-outline = build_outline_hierarchy(headings)
+    if not pdf_files:
+        print(f"No PDF files found in '{INPUT_DIR}'")
+        return
 
+    for filename in pdf_files:
+        input_path = os.path.join(INPUT_DIR, filename)
+        output_filename = os.path.splitext(filename)[0] + ".json"
+        output_path = os.path.join(OUTPUT_DIR, output_filename)
 
-output_json = {
-    "title": headings[0]["text"] if headings else "Untitled Document",
-    "outline": outline
-}
+        print(f"\nProcessing: {filename}")
+        try:
+            lines = extract_visual_features(input_path)
+            print(f"Extracted {len(lines)} visual lines")
 
-with open("output/outline.json", "w", encoding="utf-8") as f:
-    json.dump(output_json, f, indent=2, ensure_ascii=False)
-print("Saved structured outline to output/outline.json")
+            headings = classify_headings(lines, deduplicate=True, debug=False)
+            print(f"Found {len(headings)} heading candidates")
+            
+            headings = semantic_deduplicate(headings)
+            print(f"After semantic deduplication: {len(headings)} headings")
 
-print(f"\nSaved structured outline to {OUTPUT_PATH}")
+            outline = build_outline_hierarchy(headings)
+
+            output_json = {
+                "title": headings[0]["text"] if headings else "Untitled Document",
+                "outline": outline
+            }
+
+            with open(output_path, "w", encoding="utf-8") as f:
+                json.dump(output_json, f, indent=2, ensure_ascii=False)
+
+            print(f"Saved structured outline to {output_path}")
+
+        except Exception as e:
+            print(f"Failed to process {filename}: {e}")
+
+if __name__ == "__main__":
+    process_all_pdfs()
