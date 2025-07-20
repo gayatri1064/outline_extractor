@@ -120,7 +120,7 @@ def classify_headings(lines, deduplicate=True, debug=False):
 
         if line["bold"]:
             score += 0.5
-        if len(text.split()) <= 10:
+        if len(text.split()) <= 5:
             score += 0.5
         if line["y"] < 200:
             score += 0.2
