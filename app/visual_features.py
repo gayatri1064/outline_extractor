@@ -20,21 +20,20 @@ def extract_visual_features(pdf_path):
                     if not line_text:
                         continue
 
-                    # Improved font size handling
+              
                     font_sizes = [s['size'] for s in l['spans'] if s.get('size', 0) > 0]
                     if not font_sizes:
                         continue
-                    font_size = max(font_sizes)  # Keep max for headings, or use avg: sum(font_sizes) / len(font_sizes)
+                    font_size = max(font_sizes)  
 
-                    # Improved bold detection (both flag-based and name-based)
                     bold = any(
                         "Bold" in s.get('font', '') or 
                         "bold" in s.get('font', '').lower() or 
-                        (s.get('flags', 0) & 2**4)  # Bold flag
+                        (s.get('flags', 0) & 2**4)  
                         for s in l['spans']
                     )
                     
-                    # Position coordinates
+               
                     x_coords = [s['bbox'][0] for s in l['spans'] if len(s['bbox']) >= 4]
                     y_coords = [s['bbox'][1] for s in l['spans'] if len(s['bbox']) >= 4]
                     
