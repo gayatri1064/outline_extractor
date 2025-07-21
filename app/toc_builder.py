@@ -1,4 +1,23 @@
 def build_outline_hierarchy(flat_headings):
+    """
+    Build outline structure. For the desired output format, 
+    we return a flat structure without nested children.
+    """
+    # Simply return the flat structure since desired output shows flat list
+    return [
+        {
+            "level": h["level"],
+            "text": h["text"], 
+            "page": h["page"]
+        }
+        for h in flat_headings
+    ]
+
+def build_outline_hierarchy_nested(flat_headings):
+    """
+    Alternative: Build true hierarchical structure with children if needed.
+    Use this if you want nested structure in the future.
+    """
     outline = []
     stack = []
 
@@ -25,8 +44,8 @@ def build_outline_hierarchy(flat_headings):
 
     return outline
 
-
 def print_outline_tree(outline, indent=0):
+    """Print the outline in a readable tree format."""
     for h in outline:
         print("  " * indent + f"{h['level']} - {h['text']} (Page {h['page']})")
         if h.get("children"):

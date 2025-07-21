@@ -1,10 +1,7 @@
-from sentence_transformers import SentenceTransformer, util
-import torch
-model = SentenceTransformer('sentence-transformers/all-MiniLM-L6-v2')
+import re
+
 def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5, font_tolerance=1.0, debug=False):
-    """
-    Improved grouping function that better handles multi-line headings.
-    """
+   
     if not lines:
         return []
 
@@ -28,15 +25,12 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
             if not same_page:
                 break
                 
-           
             font_compatible = abs(curr["font_size"] - prev["font_size"]) <= font_tolerance
             same_bold = curr["bold"] == prev["bold"]
             
-           
             x_aligned = abs(curr["x"] - prev["x"]) <= max_x_diff
             y_close = abs(curr["y"] - prev["y"]) <= max_y_diff
             
-          
             curr_words = len(curr["text"].split())
             prev_words = len(prev["text"].split())
             likely_heading_parts = curr_words <= 8 and prev_words <= 8
@@ -44,7 +38,6 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
             is_continuation = (same_page and font_compatible and same_bold and 
                              x_aligned and y_close and likely_heading_parts)
             
-        
             text_continuation = (not prev["text"].rstrip().endswith('.') and 
                                curr["text"] and curr["text"][0].islower())
             
@@ -54,11 +47,9 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
                     print(f"  → Added: '{curr['text'][:50]}...'")
                 j += 1
             else:
-                
                 if j < min(i + lookahead + 1, len(lines)) - 1:
                     next_line = lines[j + 1] if j + 1 < len(lines) else None
                     if next_line and next_line["page"] == prev["page"]:
-                      
                         next_font_compatible = abs(next_line["font_size"] - prev["font_size"]) <= font_tolerance
                         next_same_bold = next_line["bold"] == prev["bold"]
                         next_x_aligned = abs(next_line["x"] - prev["x"]) <= max_x_diff
@@ -66,15 +57,15 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
                         
                         if next_font_compatible and next_same_bold and next_x_aligned and next_y_close:
                             if debug:
-                                print(f"  ⏭️ Skipping line, trying next: '{lines[j]['text'][:30]}...'")
+                                print(f"  Skipping line, trying next: '{lines[j]['text'][:30]}...'")
                             j += 1 
                             continue
                 break
 
-        # merge the collected lines
+        
         merged_text = " ".join([b["text"] for b in buffer]).strip()
         if debug and len(buffer) > 1:
-            print(f"  ✅ Final merged ({len(buffer)} lines): '{merged_text[:100]}...'")
+            print(f"  Final merged ({len(buffer)} lines): '{merged_text[:100]}...'")
         
         first_line = buffer[0]
         grouped.append({
@@ -86,61 +77,128 @@ def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5,
             "page": first_line["page"]
         })
 
-        i += len(buffer)  
+        i += len(buffer)
 
     return grouped
+
+def simple_text_similarity(text1, text2, threshold=0.85):
+    """
+    Fast text-based deduplication using word overlap instead of embeddings.
+    """
+    words1 = set(text1.lower().split())
+    words2 = set(text2.lower().split())
+    
+    if not words1 or not words2:
+        return False
+    
+    intersection = len(words1.intersection(words2))
+    union = len(words1.union(words2))
+    
+    jaccard_similarity = intersection / union if union > 0 else 0
+    return jaccard_similarity >= threshold
 
 def classify_headings(lines, deduplicate=True, debug=False):
     lines = group_multiline_candidates(lines, debug=debug)
 
     font_sizes = [line["font_size"] for line in lines]
+    if not font_sizes:
+        return []
+        
     max_font = max(font_sizes)
     avg_font = sum(font_sizes) / len(font_sizes)
 
     headings = []
-    seen = set()
+    seen_texts = []
 
     for line in lines:
-        score = 0
         text = line["text"].strip()
-
-        # Skip bad candidates
+        
+        # skip bad candidates
         if len(text.split()) <= 1 or not any(c.isalpha() for c in text):
             if debug:
-                print(f"⛔ Rejected: {text}")
+                print(f" Rejected (too short/no alpha): {text}")
             continue
-
-        # Heuristics
-        if line["font_size"] >= max_font * 0.9:
-            score += 2
-        elif line["font_size"] >= avg_font * 1.5:
-            score += 1
-        elif line["font_size"] >= avg_font * 1.2:
+        
+        # skip very long texts (likely paragraphs)
+        if len(text.split()) > 15:
+            if debug:
+                print(f" Rejected (too long): {text[:50]}...")
+            continue
+        
+        # enhanced pattern matching for structured headings
+        score = 0
+        
+        # font size scoring
+        font_ratio = line["font_size"] / max_font
+        if font_ratio >= 0.9:  
+            score += 2.0
+        elif font_ratio >= 0.8:  
+            score += 1.5
+        elif font_ratio >= 0.7: 
+            score += 1.0
+        elif font_ratio >= 0.6: 
             score += 0.5
-
+        
+        
+        # bold formatting
         if line["bold"]:
+            score += 1.0
+        
+        # position-based scoring (top of page likely headings)
+        if line["y"] < 150:
             score += 0.5
-        if len(text.split()) <= 5:
+        
+        # pattern-based scoring
+        # check for numbered sections (1., 2.1, etc.)
+        if re.match(r'^\d+\.', text) or re.match(r'^\d+\.\d+', text):
+            score += 1.5
+            
+        # common heading words
+        heading_keywords = ['introduction', 'overview', 'summary', 'conclusion', 'references', 
+                           'acknowledgements', 'contents', 'history', 'background', 'objectives',
+                           'requirements', 'structure', 'duration', 'audience', 'career', 'learning']
+        
+        if any(keyword in text.lower() for keyword in heading_keywords):
             score += 0.5
-        if line["y"] < 200:
+            
+        # length preference for headings
+        word_count = len(text.split())
+        if word_count <= 8:
+            score += 0.5
+        elif word_count <= 12:
             score += 0.2
+            
+        # check if text ends with common heading patterns
+        if text.strip().endswith((':', 'History', 'Contents', 'References', 'Acknowledgements')):
+            score += 0.5
 
-        # Assign level
-        if score >= 2:
+        # assign level based on score and patterns
+        level = None
+        if score >= 2.5:
             level = "H1"
-        elif score >= 1.5:
+        elif score >= 1.8:
             level = "H2"
-        elif score >= 1.0:
+        elif score >= 1.2:
             level = "H3"
         else:
             if debug:
-                print(f"⛔ Low score ({score:.2f}): {text}")
+                print(f"Low score ({score:.2f}): {text}")
             continue
 
-        key = (text.lower(), level, line["page"])
-        if key in seen:
-            continue
-        seen.add(key)
+        # fast deduplication using text similarity
+        if deduplicate:
+            is_duplicate = False
+            for seen_text in seen_texts:
+                if simple_text_similarity(text, seen_text, threshold=0.8):
+                    is_duplicate = True
+                    break
+            
+            if is_duplicate:
+                if debug:
+                    print(f" Rejected (duplicate): {text}")
+                continue
+            
+            seen_texts.append(text)
 
         headings.append({
             "level": level,
@@ -149,28 +207,6 @@ def classify_headings(lines, deduplicate=True, debug=False):
         })
 
         if debug:
-            print(f"✅ [{level}] {text} (Page {line['page']})")
-
-    # ✅ Semantic deduplication (AFTER collecting all headings)
-    if deduplicate:
-        unique_headings = []
-        seen_embeddings = []
-
-        for h in headings:
-            text = h["text"]
-            embedding = model.encode(text, convert_to_tensor=True)
-
-            is_duplicate = False
-            for seen in seen_embeddings:
-                sim = util.pytorch_cos_sim(embedding, seen)[0][0].item()
-                if sim > 0.88:
-                    is_duplicate = True
-                    break
-
-            if not is_duplicate:
-                unique_headings.append(h)
-                seen_embeddings.append(embedding)
-
-        headings = unique_headings
+            print(f" [{level}] {text} (Page {line['page']}, Score: {score:.2f})")
 
     return headings
