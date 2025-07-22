@@ -170,6 +170,14 @@ def classify_headings(lines, deduplicate=True, debug=False):
         if any(neg in text_lower for neg in negative_keywords):
          score -= 5.0  # drastic reduction
 
+        address_patterns = [
+           r'\b\d{1,6}\s+\w+',               # street number + street name
+           r'\b[A-Z]{2}\s+\d{5}(-\d{4})?\b'  # state abbreviation + zip code
+        ]
+
+        if any(re.search(pattern, text) for pattern in address_patterns):
+         score -= 2.5  # penalise likely addresses
+
         
             
         # length preference for headings
