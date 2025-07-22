@@ -132,17 +132,17 @@ def classify_headings(lines, deduplicate=True, debug=False):
         font_ratio = line["font_size"] / max_font
         if font_ratio >= 0.9:  
             score += 2.0
-        elif font_ratio >= 0.8:  
+        elif font_ratio >= 0.85:  
             score += 1.5
-        elif font_ratio >= 0.7: 
+        elif font_ratio >= 0.75: 
             score += 1.0
-        elif font_ratio >= 0.6: 
+        elif font_ratio >= 0.65: 
             score += 0.5
         
         
         # bold formatting
         if line["bold"]:
-            score += 1.0
+            score += 3.0
         
         # position-based scoring (top of page likely headings)
         if line["y"] < 150:
@@ -156,16 +156,27 @@ def classify_headings(lines, deduplicate=True, debug=False):
         # common heading words
         heading_keywords = ['introduction', 'overview', 'summary', 'conclusion', 'references', 
                            'acknowledgements', 'contents', 'history', 'background', 'objectives',
-                           'requirements', 'structure', 'duration', 'audience', 'career', 'learning']
+                           'requirements', 'structure', 'duration', 'audience', 'career', 'learning','options']
+                           
         
-        if any(keyword in text.lower() for keyword in heading_keywords):
-            score += 0.5
+        
+
+        negative_keywords = ['signature', 'sign', 'date', 'approved', 'approval', 'name', 'designation', 'prepared by','availed','shortest route','amount','rsvp','please',]
+
+        text_lower = text.lower() 
+        if any(keyword in text_lower for keyword in heading_keywords):
+         score += 0.5
+
+        if any(neg in text_lower for neg in negative_keywords):
+         score -= 5.0  # drastic reduction
+
+        
             
         # length preference for headings
         word_count = len(text.split())
-        if word_count <= 8:
+        if word_count <= 5:
             score += 0.5
-        elif word_count <= 12:
+        elif word_count <= 8:
             score += 0.2
             
         # check if text ends with common heading patterns
@@ -174,11 +185,11 @@ def classify_headings(lines, deduplicate=True, debug=False):
 
         # assign level based on score and patterns
         level = None
-        if score >= 2.5:
+        if score >= 5.0:
             level = "H1"
-        elif score >= 1.8:
+        elif score >= 2.0:
             level = "H2"
-        elif score >= 1.2:
+        elif score >= 1.5:
             level = "H3"
         else:
             if debug:
