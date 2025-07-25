@@ -1,5 +1,6 @@
 import re
 
+
 def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5, font_tolerance=1.0, debug=False):
    
     if not lines:
