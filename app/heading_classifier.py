@@ -187,8 +187,8 @@ def classify_headings(lines, deduplicate=True, debug=False):
         date_patterns = [
     r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',               # 12/03/2023, 12-03-2023
     r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',                 # 2023-03-12
-    r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{1,2},?\s*\d{2,4}\b',  # March 12, 2023
-    r'\b\d{1,2}[\s-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{2,4}\b',  # 12 March 2023
+    r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z][\s,-]\d{1,2},?\s*\d{2,4}\b',  # March 12, 2023
+    r'\b\d{1,2}[\s-](?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z][\s,-]*\d{2,4}\b',  # 12 March 2023
 ]
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in date_patterns):
             if debug:
