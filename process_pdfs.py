@@ -4,6 +4,10 @@ from app.visual_features import extract_visual_features
 from app.heading_classifier import classify_headings
 from app.toc_builder import build_outline_hierarchy
 from app.semantic_filter import semantic_deduplicate
+from difflib import SequenceMatcher
+
+def ratio(a, b):
+    return int(SequenceMatcher(None, a, b).ratio() * 100)
 
 INPUT_DIR = "input"
 OUTPUT_DIR = "output"
@@ -14,7 +18,6 @@ def process_all_pdfs():
         return
 
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-
     pdf_files = [f for f in os.listdir(INPUT_DIR) if f.lower().endswith(".pdf")]
 
     if not pdf_files:
@@ -28,34 +31,51 @@ def process_all_pdfs():
 
         print(f"\nProcessing: {filename}")
         try:
-            # Extract visual features
             lines = extract_visual_features(input_path)
             print(f"Extracted {len(lines)} visual lines")
 
-            # Classify headings with improved logic
-            headings = classify_headings(lines, deduplicate=False, debug=False)  # Handle deduplication separately
+            headings = classify_headings(lines, deduplicate=False, debug=False)
             print(f"Found {len(headings)} heading candidates")
 
-            # Apply semantic deduplication (now fast)
             headings = semantic_deduplicate(headings)
             print(f"After semantic deduplication: {len(headings)} headings")
 
-            # Build outline (flat structure to match desired output)
-            outline = build_outline_hierarchy(headings)
+            # Initialize title and outline
+            title = ""
+            outline = []
 
-            # Create output JSON
+            if len(headings) == 1:
+                single = headings[0]
+                text = single["text"].lower()
+                flyer_keywords = ["hope", "welcome", "see you", "invitation", "celebration", "there!"]
+                if any(kw in text for kw in flyer_keywords):
+                    title = ""
+                    outline = [single]
+                else:
+                    title = single["text"]
+                    outline = []
+            elif len(headings) > 1:
+                heading_text = headings[0]["text"]
+                outline_text = headings[1]["text"]
+                similarity_score = ratio(heading_text, outline_text)
+
+                if similarity_score >= 85:
+                    title = ""
+                else:
+                    title = heading_text
+
+                outline = build_outline_hierarchy(headings[1:])
+
+            # Final JSON
             output_json = {
-                "title": headings[0]["text"] if headings else "Untitled Document",
+                "title": title,
                 "outline": outline
             }
 
-            # Save to file
             with open(output_path, "w", encoding="utf-8") as f:
                 json.dump(output_json, f, indent=2, ensure_ascii=False)
 
             print(f"Saved structured outline to {output_path}")
-            
-            # Print summary for debugging
             print("\nExtracted headings:")
             for h in headings:
                 print(f"  {h['level']}: {h['text']} (Page {h['page']})")
