@@ -172,11 +172,28 @@ def classify_headings(lines, deduplicate=True, debug=False):
          score -= 5.0  # drastic reduction
 
          
-        address_patterns = [r'\b\d{1,6}\s+(?:[A-Za-z]+\s)*(Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Parkway|Pkwy)\b',r'\b[A-Z]{2}\s+\d{5}(-\d{4})?\b']
+        address_patterns = [
+    r'\b\d{1,6}\s+(?:[A-Za-z]+\s)*(Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Parkway|Pkwy|Place|Pl|Square|Sq)\b',
+    r'\b(?:Suite|Ste|Apt|Unit)\s*\d+\b',                                     # Suite 303, Apt 12
+    r'\b[A-Z]{2}\s+\d{5}(-\d{4})?\b',                                        # US state + ZIP (e.g., CA 90210)
+    r'\b[A-Z]{2}\s+[A-Z]?\d[A-Z]?\s*\d[A-Z]?\d\b',                           # Canadian postal code like M5C 1M3
+    r'\b(?:Toronto|Vancouver|New York|San Francisco|Los Angeles|Chicago)\b',  # Common city names (optional)
+]
 
 
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in address_patterns):
           score -= 2.5  # penalise likely addresses
+
+        date_patterns = [
+    r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',               # 12/03/2023, 12-03-2023
+    r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',                 # 2023-03-12
+    r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{1,2},?\s*\d{2,4}\b',  # March 12, 2023
+    r'\b\d{1,2}[\s-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{2,4}\b',  # 12 March 2023
+]
+        if any(re.search(pattern, text, re.IGNORECASE) for pattern in date_patterns):
+            if debug:
+                print(f" Rejected (date-like): {text}")
+            continue
 
         
             
