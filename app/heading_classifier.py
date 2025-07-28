@@ -1,4 +1,21 @@
 import re
+from langdetect import detect
+SUPPORTED_LANGUAGES = {"en", "hi", "fr", "de", "es"}
+#en=english, hi=hindi, fr=french, de=german, es=spanish
+
+def get_language(text):
+    text = text.strip()
+    
+    if not text or len(text.split()) < 2:
+        if text.isupper():
+            return "en"
+
+    try:
+        lang = detect(text)
+        return lang if lang in SUPPORTED_LANGUAGES else "unknown"
+    except:
+        return "unknown"
+
 
 
 def group_multiline_candidates(lines, max_y_diff=25, max_x_diff=20, lookahead=5, font_tolerance=1.0, debug=False):
@@ -113,9 +130,16 @@ def classify_headings(lines, deduplicate=True, debug=False):
 
     for line in lines:
         text = line["text"].strip()
-        
+
+        # ✅ New: reject lowercase-starting fragments
+        if text and text[0].islower():
+            if debug:
+                print(f" Rejected (starts with lowercase): {text}")
+            continue
+
         # skip bad candidates
-        if len(text.split()) <= 1 or not any(c.isalpha() for c in text):
+        if not any(c.isalpha() for c in text):
+
             if debug:
                 print(f" Rejected (too short/no alpha): {text}")
             continue
@@ -125,8 +149,8 @@ def classify_headings(lines, deduplicate=True, debug=False):
             if debug:
                 print(f" Rejected (too long): {text[:50]}...")
             continue
-        
-        # enhanced pattern matching for structured headings
+
+        language = get_language(text)
         score = 0
         
         # font size scoring
@@ -140,7 +164,6 @@ def classify_headings(lines, deduplicate=True, debug=False):
         elif font_ratio >= 0.65: 
             score += 0.5
         
-        
         # bold formatting
         if line["bold"]:
             score += 3.0
@@ -149,66 +172,68 @@ def classify_headings(lines, deduplicate=True, debug=False):
         if line["y"] < 150:
             score += 0.5
         
-        # pattern-based scoring
-        # check for numbered sections (1., 2.1, etc.)
+        # numbered section pattern
         if re.match(r'^\d+\.', text) or re.match(r'^\d+\.\d+', text):
             score += 1.5
             
-        # common heading words
-        heading_keywords = ['introduction', 'overview', 'summary', 'conclusion', 'references', 
-                           'acknowledgements', 'contents', 'history', 'background', 'objectives',
-                           'requirements', 'structure', 'duration', 'audience', 'career', 'learning','options']
-                           
-        
-        
+        # multilingual heading keywords
+        heading_keywords = [
+            # English
+            'introduction', 'overview', 'summary', 'conclusion', 'references', 'acknowledgements',
+            'contents', 'history', 'background', 'objectives', 'requirements', 'structure',
+            'duration', 'audience', 'career', 'learning', 'options',
+            # Spanish
+            'introducción', 'resumen', 'conclusión', 'referencias', 'agradecimientos',
+            # French
+            'résumé', 'références',
+            # German
+            'einleitung', 'schlussfolgerung', 'danksagung',
+            # Hindi
+            'परिचय', 'सारांश', 'निष्कर्ष'
+        ]
 
-        negative_keywords = ['signature', 'sign', 'date', 'approved', 'approval', 'name', 'designation', 'prepared by','availed','shortest route','amount','rsvp','please',]
+        negative_keywords = [
+            'signature', 'sign', 'date', 'approved', 'approval', 'name', 'designation',
+            'prepared by', 'availed', 'shortest route', 'amount', 'rsvp', 'please'
+        ]
 
         text_lower = text.lower() 
         if any(keyword in text_lower for keyword in heading_keywords):
-         score += 0.5
-
+            score += 0.5
         if any(neg in text_lower for neg in negative_keywords):
-         score -= 5.0  # drastic reduction
+            score -= 5.0
 
-         
         address_patterns = [
-    r'\b\d{1,6}\s+(?:[A-Za-z]+\s)*(Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Parkway|Pkwy|Place|Pl|Square|Sq)\b',
-    r'\b(?:Suite|Ste|Apt|Unit)\s*\d+\b',                                     # Suite 303, Apt 12
-    r'\b[A-Z]{2}\s+\d{5}(-\d{4})?\b',                                        # US state + ZIP (e.g., CA 90210)
-    r'\b[A-Z]{2}\s+[A-Z]?\d[A-Z]?\s*\d[A-Z]?\d\b',                           # Canadian postal code like M5C 1M3
-    r'\b(?:Toronto|Vancouver|New York|San Francisco|Los Angeles|Chicago)\b',  # Common city names (optional)
-]
-
-
+            r'\b\d{1,6}\s+(?:[A-Za-z]+\s)*(Street|St|Road|Rd|Avenue|Ave|Boulevard|Blvd|Lane|Ln|Drive|Dr|Court|Ct|Parkway|Pkwy|Place|Pl|Square|Sq)\b',
+            r'\b(?:Suite|Ste|Apt|Unit)\s*\d+\b',
+            r'\b[A-Z]{2}\s+\d{5}(-\d{4})?\b',
+            r'\b[A-Z]{2}\s+[A-Z]?\d[A-Z]?\s*\d[A-Z]?\d\b',
+            r'\b(?:Toronto|Vancouver|New York|San Francisco|Los Angeles|Chicago)\b',
+        ]
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in address_patterns):
-          score -= 2.5  # penalise likely addresses
+            score -= 2.5
 
         date_patterns = [
-    r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',               # 12/03/2023, 12-03-2023
-    r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',                 # 2023-03-12
-    r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{1,2},?\s*\d{2,4}\b',  # March 12, 2023
-    r'\b\d{1,2}[\s-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{2,4}\b',  # 12 March 2023
-]
+            r'\b\d{1,2}[/-]\d{1,2}[/-]\d{2,4}\b',
+            r'\b\d{4}[/-]\d{1,2}[/-]\d{1,2}\b',
+            r'\b(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{1,2},?\s*\d{2,4}\b',
+            r'\b\d{1,2}[\s-]*(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*[\s,-]*\d{2,4}\b',
+        ]
         if any(re.search(pattern, text, re.IGNORECASE) for pattern in date_patterns):
             if debug:
                 print(f" Rejected (date-like): {text}")
             continue
 
-        
-            
-        # length preference for headings
         word_count = len(text.split())
         if word_count <= 5:
             score += 0.5
         elif word_count <= 8:
             score += 0.2
             
-        # check if text ends with common heading patterns
         if text.strip().endswith((':', 'History', 'Contents', 'References', 'Acknowledgements')):
             score += 0.5
 
-        # assign level based on score and patterns
+        # assign heading level
         level = None
         if score >= 5.0:
             level = "H1"
@@ -221,25 +246,23 @@ def classify_headings(lines, deduplicate=True, debug=False):
                 print(f"Low score ({score:.2f}): {text}")
             continue
 
-        # fast deduplication using text similarity
         if deduplicate:
             is_duplicate = False
             for seen_text in seen_texts:
                 if simple_text_similarity(text, seen_text, threshold=0.8):
                     is_duplicate = True
                     break
-            
             if is_duplicate:
                 if debug:
                     print(f" Rejected (duplicate): {text}")
                 continue
-            
             seen_texts.append(text)
 
         headings.append({
             "level": level,
             "text": text,
-            "page": line["page"]
+            "page": max(0, line["page"] - 1),
+            
         })
 
         if debug:
