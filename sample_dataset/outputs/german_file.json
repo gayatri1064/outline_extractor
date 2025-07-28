@@ -1,0 +1,40 @@
+{
+  "title": "Digitale Bildung im 21. Jahrhundert",
+  "outline": [
+    {
+      "level": "H2",
+      "text": "Einleitung",
+      "page": 0
+    },
+    {
+      "level": "H2",
+      "text": "Technologische Werkzeuge",
+      "page": 0
+    },
+    {
+      "level": "H2",
+      "text": "Vorteile",
+      "page": 0
+    },
+    {
+      "level": "H2",
+      "text": "Herausforderungen",
+      "page": 1
+    },
+    {
+      "level": "H3",
+      "text": "Infrastruktur und digitale",
+      "page": 1
+    },
+    {
+      "level": "H3",
+      "text": "Kluft sind bedeutende",
+      "page": 1
+    },
+    {
+      "level": "H2",
+      "text": "Zukunftsausblick",
+      "page": 1
+    }
+  ]
+}

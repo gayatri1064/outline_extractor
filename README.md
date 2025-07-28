@@ -1,5 +1,3 @@
-#PDF Persona Extractor
-
 This project extracts structured information from PDFs, including document titles and hierarchical outlines (headings), with logic designed to match Adobe’s behavior as closely as possible.
 
 
@@ -52,7 +50,7 @@ Includes os, re, json, collections, etc., used for file handling, regular expres
 
 
 
-##Build & Run Instructions
+# Build & Run Instructions
 
 ###1. Install Dependencies
 
